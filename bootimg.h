@@ -43,9 +43,9 @@ struct boot_img_hdr
     unsigned page_size;    /* flash page size we assume */
     unsigned dt_size;      /* device tree in bytes */
     unsigned unused;       /* future expansion: should be 0 */
-    unsigned char name[BOOT_NAME_SIZE]; /* asciiz product name */
+    char name[BOOT_NAME_SIZE]; /* asciiz product name */
 
-    unsigned char cmdline[BOOT_ARGS_SIZE];
+    char cmdline[BOOT_ARGS_SIZE];
 
     unsigned id[8]; /* timestamp / checksum / sha1 / etc */
 
