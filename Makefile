@@ -10,7 +10,8 @@ RM = del
 endif
 
 CFLAGS = -ffunction-sections -O3
-LDFLAGS = -Wl,--gc-sections
+# LDFLAGS = -Wl,--gc-sections
+LDFLAGS = -Wl
 
 all:libmincrypt.a mkbootimg$(EXE) unpackbootimg$(EXE)
 
