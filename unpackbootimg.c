@@ -17,6 +17,7 @@ int read_padding(FILE* f, unsigned itemsize, int pagesize)
     byte* buf = (byte*)malloc(sizeof(byte) * pagesize);
     unsigned pagemask = pagesize - 1;
     unsigned count;
+    int retval;
     
     if((itemsize & pagemask) == 0) {
         free(buf);
@@ -25,7 +26,7 @@ int read_padding(FILE* f, unsigned itemsize, int pagesize)
     
     count = pagesize - (itemsize & pagemask);
     
-    fread(buf, count, 1, f);
+    retval = fread(buf, count, 1, f);
     free(buf);
     return count;
 }
@@ -53,6 +54,7 @@ int main(int argc, char** argv)
     char* filename = NULL;
     int pagesize = 0;
     int base = 0;
+    int retval = 0;
     
     argc--;
     argv++;
@@ -84,7 +86,7 @@ int main(int argc, char** argv)
     int i;
     for (i = 0; i <= 512; i++) {
         fseek(f, i, SEEK_SET);
-        fread(tmp, BOOT_MAGIC_SIZE, 1, f);
+        retval = fread(tmp, BOOT_MAGIC_SIZE, 1, f);
         if (memcmp(tmp, BOOT_MAGIC, BOOT_MAGIC_SIZE) == 0)
             break;
     }
@@ -94,9 +96,9 @@ int main(int argc, char** argv)
         return 1;
     }
     fseek(f, i, SEEK_SET);
-    //printf("Android magic found at: %d\n", i);
+    printf("Android magic found at: %d\n", i);
     
-    fread(&header, sizeof(header), 1, f);
+    retval = fread(&header, sizeof(header), 1, f);
     base = header.kernel_addr - 0x00008000;
     printf("BOARD_KERNEL_CMDLINE %s\n", header.cmdline);
     printf("BOARD_KERNEL_BASE %08x\n", base);
@@ -179,7 +181,7 @@ int main(int argc, char** argv)
     FILE *k = fopen(tmp, "wb");
     byte* kernel = (byte*)malloc(header.kernel_size);
     //printf("Reading kernel...\n");
-    fread(kernel, header.kernel_size, 1, f);
+    retval = fread(kernel, header.kernel_size, 1, f);
     total_read += header.kernel_size;
     fwrite(kernel, header.kernel_size, 1, k);
     fclose(k);
@@ -192,7 +194,7 @@ int main(int argc, char** argv)
     FILE *r = fopen(tmp, "wb");
     byte* ramdisk = (byte*)malloc(header.ramdisk_size);
     //printf("Reading ramdisk...\n");
-    fread(ramdisk, header.ramdisk_size, 1, f);
+    retval = fread(ramdisk, header.ramdisk_size, 1, f);
     total_read += header.ramdisk_size;
     fwrite(ramdisk, header.ramdisk_size, 1, r);
     fclose(r);
@@ -206,7 +208,7 @@ int main(int argc, char** argv)
         FILE *s = fopen(tmp, "wb");
         byte* second = (byte*)malloc(header.second_size);
         //printf("Reading second...\n");
-        fread(second, header.second_size, 1, f);
+        retval = fread(second, header.second_size, 1, f);
         total_read += header.second_size;
         fwrite(second, header.second_size, 1, s);
         fclose(s);
@@ -221,7 +223,7 @@ int main(int argc, char** argv)
         FILE *d = fopen(tmp, "wb");
         byte* dtb = (byte*)malloc(header.dt_size);
         //printf("Reading dtb...\n");
-        fread(dtb, header.dt_size, 1, f);
+        retval = fread(dtb, header.dt_size, 1, f);
         total_read += header.dt_size;
         fwrite(dtb, header.dt_size, 1, d);
         fclose(d);
