@@ -42,7 +42,7 @@ unpackbootimg-static$(EXE):unpackbootimg.o
 	$(CROSS_COMPILE)$(CC) -o $@ $^ $(LDFLAGS) -static -s
 
 unpackbootimg.o:unpackbootimg.c
-	$(CROSS_COMPILE)$(CC) -o $@ $(CFLAGS) -c $< -Werror
+	$(CROSS_COMPILE)$(CC) -o $@ $(CFLAGS) -c $< $(if $(filter $(UNAME_S),Darwin), ,-Werror)
 
 clean:
 	$(RM) mkbootimg mkbootimg-static mkbootimg.o unpackbootimg unpackbootimg-static unpackbootimg.o mkbootimg.exe mkbootimg-static.exe unpackbootimg.exe unpackbootimg-static.exe
