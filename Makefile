@@ -9,6 +9,7 @@ EXE = .exe
 RM = del
 endif
 
+GCC_VER_CEK := $(shell expr `gcc -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' -e 's/\.\([0-9]\)/0\1/g' -e 's/^[0-9]\{3,4\}$$/&00/'` \<= 40201)
 CFLAGS = -ffunction-sections -O3
 LDFLAGS = -Wl
 
@@ -42,9 +43,10 @@ unpackbootimg-static$(EXE):unpackbootimg.o
 	$(CROSS_COMPILE)$(CC) -o $@ $^ $(LDFLAGS) -static -s
 
 unpackbootimg.o:unpackbootimg.c
-	$(CROSS_COMPILE)$(CC) -o $@ $(CFLAGS) -c $< $(if $(filter $(UNAME_S),Darwin), ,-Werror)
+	$(CROSS_COMPILE)$(CC) -o $@ $(CFLAGS) -c $< $(if $(filter $(GCC_VER_CEK),1), ,-Werror)
 
 clean:
 	$(RM) mkbootimg mkbootimg-static mkbootimg.o unpackbootimg unpackbootimg-static unpackbootimg.o mkbootimg.exe mkbootimg-static.exe unpackbootimg.exe unpackbootimg-static.exe
 	$(RM) libmincrypt.a Makefile.~
 	make -C libmincrypt clean
+
