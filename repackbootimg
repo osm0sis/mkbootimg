@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+test -n "$1" -a -d "$1" || { echo >&2 "Pass unpacked dir as only arg.  New boot.img will be written to stdout."; exit 20; }
+
+args=()
+function add-arg() {
+   args=("${args[@]}" "$@")
+}
+
+for f in "$1"/*
+do
+   case "$f" in
+      *-dtb)         add-arg --dt "$f";;
+      *-ramdisk.gz)  add-arg --ramdisk "$f";;
+      *-zImage)      add-arg --kernel "$f";;
+      *-*off)        n="${f##*-}"; add-arg --"${n%off}_offset" "$(cat "$f")";;
+      *-*)           add-arg --"${f##*-}" "$(cat "$f")";;
+   esac
+done
+
+tmp="$(mktemp)"
+trap "rm '$tmp'" EXIT
+
+"$(dirname "$0")"/mkbootimg --output "$tmp" "${args[@]}"
+
+cat "$tmp"
