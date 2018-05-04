@@ -24,7 +24,7 @@ else
     LDFLAGS += -Wl,--gc-sections -s
 endif
 
-all:libmincrypt.a mkbootimg$(EXE) unpackbootimg$(EXE)
+all:mkbootimg$(EXE) unpackbootimg$(EXE)
 
 static:
 	make LDFLAGS="$(LDFLAGS) -static"
@@ -32,7 +32,7 @@ static:
 libmincrypt.a:
 	make -C libmincrypt
 
-mkbootimg$(EXE):mkbootimg.o
+mkbootimg$(EXE):mkbootimg.o libmincrypt.a
 	$(CROSS_COMPILE)$(CC) -o $@ $^ -L. -lmincrypt $(LDFLAGS)
 
 mkbootimg.o:mkbootimg.c
