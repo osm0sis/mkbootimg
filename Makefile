@@ -27,10 +27,10 @@ endif
 all:mkbootimg$(EXE) unpackbootimg$(EXE)
 
 static:
-	make LDFLAGS="$(LDFLAGS) -static"
+	$(MAKE) LDFLAGS="$(LDFLAGS) -static"
 
 libmincrypt.a:
-	make -C libmincrypt
+	$(MAKE) -C libmincrypt
 
 mkbootimg$(EXE):mkbootimg.o libmincrypt.a
 	$(CROSS_COMPILE)$(CC) -o $@ $^ -L. -lmincrypt $(LDFLAGS)
@@ -47,5 +47,5 @@ unpackbootimg.o:unpackbootimg.c
 clean:
 	$(RM) mkbootimg unpackbootimg
 	$(RM) *.a *.~ *.exe *.o
-	make -C libmincrypt clean
+	$(MAKE) -C libmincrypt clean
 
