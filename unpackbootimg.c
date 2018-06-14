@@ -6,6 +6,8 @@
 #include <errno.h>
 #include <limits.h>
 #include <libgen.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "mincrypt/sha.h"
 #include "bootimg.h"
@@ -97,9 +99,25 @@ int main(int argc, char** argv)
         return usage();
     }
     
+    struct stat st;
+    if (stat(directory, &st) == (-1)) {
+        printf("Could not stat %s: %s\n", directory, strerror(errno));
+        return 1;
+    }
+    if (!S_ISDIR(st.st_mode)) {
+        printf("%s is not a directory\n", directory);
+        return 1;
+    }
+    
     int total_read = 0;
     FILE* f = fopen(filename, "rb");
     boot_img_hdr header;
+    
+
+    if (!f) {
+        printf("Could not open input file: %s\n", strerror(errno));
+        return (1);
+    }
     
     //printf("Reading header...\n");
     int i;
