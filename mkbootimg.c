@@ -358,6 +358,7 @@ int main(int argc, char **argv)
                     return -1;
                 }
             } else {
+                fprintf(stderr, "error: unknown argument '%s'\n", arg);
                 return usage();
             }
         } else {
