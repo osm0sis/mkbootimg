@@ -50,6 +50,6 @@ clean:
 	$(MAKE) -C libmincrypt clean
 
 install:
-	install -m 755 unpackbootimg ${PREFIX}/bin
-	install -m 755 mkbootimg ${PREFIX}/bin
+	install -m 755 unpackbootimg $(PREFIX)/bin
+	install -m 755 mkbootimg $(PREFIX)/bin
 

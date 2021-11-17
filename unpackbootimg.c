@@ -191,7 +191,7 @@ int main(int argc, char **argv)
     fseek(f, i, SEEK_SET);
     if(fread(&header, sizeof(header), 1, f)) {};
 
-    if(strcmp(magic, BOOT_MAGIC) == 0) {
+    if(!strcmp(magic, BOOT_MAGIC)) {
         if((header.header_version < 3) || (header.header_version > hdr_ver_max)) {
             // boot_img_hdr_v2 in the backported header supports all boot_img_hdr versions and cross-compatible variants below 3
 
