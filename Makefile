@@ -52,3 +52,4 @@ clean:
 	$(RM) mkbootimg unpackbootimg
 	$(RM) *.a *.~ *.exe *.o
 	$(MAKE) -C libmincrypt clean
+
