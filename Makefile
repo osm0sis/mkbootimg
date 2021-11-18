@@ -44,12 +44,11 @@ unpackbootimg$(EXE):unpackbootimg.o
 unpackbootimg.o:unpackbootimg.c
 	$(CROSS_COMPILE)$(CC) -o $@ $(CFLAGS) -c $< -Werror
 
-clean:
-	$(RM) mkbootimg unpackbootimg
-	$(RM) *.a *.~ *.exe *.o
-	$(MAKE) -C libmincrypt clean
-
 install:
 	install -m 755 unpackbootimg $(PREFIX)/bin
 	install -m 755 mkbootimg $(PREFIX)/bin
 
+clean:
+	$(RM) mkbootimg unpackbootimg
+	$(RM) *.a *.~ *.exe *.o
+	$(MAKE) -C libmincrypt clean
