@@ -53,6 +53,20 @@ oops:
 
 static unsigned char padding[131072] = { 0, };
 
+/*
+ * In order to ensure that all allocated memory is deallocated, this
+ * array will hold the addresses returned by malloc(), with addr_count
+ * holding the addresses as an index
+ */
+void *addresses[10];
+int addr_count = 0;
+
+#define ADD_ADDR(addr)                \
+    if(addr != NULL) {                \
+        addresses[addr_count] = addr; \
+        addr_count += 1;              \
+    }
+
 int write_padding(int fd, unsigned pagesize, unsigned itemsize)
 {
     unsigned pagemask = pagesize - 1;
@@ -87,6 +101,79 @@ int parse_os_patch_level(char *lvl)
         return (y << 4) | m;
     }
     return 0;
+}
+
+/*
+ * Reads every file created by unpackbootimg and extracts
+ * its values.
+ *
+ * Parameters:
+ * @preffix: the part of the name preceding the value
+ * (ex.: boot.img-).
+ * @value: this is the name of the parameter itself
+ * (ex.: kernel, ramdisk_offset, etc.).
+ */
+char* read_value_from_file(char *preffix, char *value)
+{
+    size_t preffix_len   = strlen(preffix);
+    size_t value_len     = strlen(value);
+    size_t file_name_len = preffix_len + value_len + 1;
+    size_t file_size     = 0;
+    char *file_name      = malloc(file_name_len);
+    char *data           = NULL;
+    int fd               = 0;
+    int second_fd        = 0;
+
+    memset(file_name, 0, file_name_len);
+    memcpy(file_name, preffix, preffix_len);
+    memcpy(file_name + preffix_len, "-", 1);
+    memcpy(file_name + preffix_len + 1, value, value_len);
+
+    if(!strcmp(value, "second")
+       || !strcmp(value, "kernel")
+       || !strcmp(value, "ramdisk")) {
+        second_fd = open(file_name, O_RDONLY);
+        if(second_fd < 0) {
+            close(second_fd);
+            free(file_name);
+            return NULL;
+        } else {
+            close(second_fd);
+            return file_name;
+        }
+    }
+
+    fd = open(file_name, O_RDONLY);
+    if(fd < 0) {
+        free(file_name);
+        return NULL;
+    }
+
+    file_size = lseek(fd, 0, SEEK_END);
+    if(file_size == -1) {
+        fprintf(stderr, "error: error while reading %s\n", file_name);
+        free(file_name);
+        return NULL;
+    }
+
+    if(lseek(fd, 0, SEEK_SET) == -1) {
+        fprintf(stderr, "error: error while reading %s\n", file_name);
+        free(file_name);
+        return NULL;
+    }
+
+    data = malloc(file_size);
+    memset(data, 0, file_size);
+
+    if(pread(fd, data, file_size - 1, 0) == -1) {
+        fprintf(stderr, "error: error while reading file %s\n", file_name);
+        free(file_name);
+        free(data);
+        return NULL;
+    }
+    close(fd);
+    free(file_name);
+    return data;
 }
 
 enum hash_alg {
@@ -205,6 +292,7 @@ int usage(void)
 {
     fprintf(stderr,
         "usage: mkbootimg\n"
+        "\t[ --from-unpackbootimg-files <preffix> ]\n"
         "\t[ --kernel <filename> ]\n"
         "\t[ --ramdisk <filename> | --vendor_ramdisk <filename> ]\n"
         "\t[ --second <filename> ]\n"
@@ -234,6 +322,20 @@ int main(int argc, char **argv)
 {
     char *bootimg = NULL;
     char *kernel_fn = NULL;
+    char *files_preffix = NULL;
+    char *hash_alg_val = "sha1";
+    char *temp_pagesize = NULL;
+    char *temp_base = NULL;
+    char *temp_kernel_offset = NULL;
+    char *temp_ramdisk_offset = NULL;
+    char *temp_header_version = NULL;
+    char *temp_os_patch_level = NULL;
+    char *temp_os_version = NULL;
+    char *temp_second_offset = NULL;
+    char *temp_tags_offset = NULL;
+    char *temp_board = NULL;
+    char *temp_cmdline = NULL;
+    char *temp_hash_alg_val = NULL;
     void *kernel_data = NULL;
     char *ramdisk_fn = NULL;
     void *ramdisk_data = NULL;
@@ -250,6 +352,7 @@ int main(int argc, char **argv)
     int os_version = 0;
     int os_patch_level = 0;
     int header_version = 0;
+    int orig_argc = argc;
     uint32_t pagesize        = 2048;
     uint32_t base            = 0x10000000U;
     uint32_t kernel_offset   = 0x00008000U;
@@ -280,7 +383,95 @@ int main(int argc, char **argv)
             show_id = true;
             argc -= 1;
             argv += 1;
-        } else if(argc >= 2) {
+            continue;
+        }
+        if(!strcmp(arg, "--from-unpackbootimg-files")) {
+            if((orig_argc - 1) != argc) {
+                fprintf(stderr, "error: --from-unmkbootimg-files must be the first parameter\n");
+                return usage();
+            }
+            if(argc > 1 && (argv + 1)[0][0] != '-') {
+                argc -= 1;
+                argv += 1;
+
+                files_preffix = argv[0];
+
+                kernel_fn = read_value_from_file(files_preffix, "kernel");
+                ADD_ADDR(kernel_fn);
+
+                ramdisk_fn = read_value_from_file(files_preffix, "ramdisk");
+                ADD_ADDR(ramdisk_fn);
+
+                second_fn = read_value_from_file(files_preffix, "second");
+                ADD_ADDR(second_fn);
+
+                /* pagesize */
+                temp_pagesize = read_value_from_file(files_preffix, "pagesize");
+                pagesize = temp_pagesize == NULL ? pagesize : strtoul(temp_pagesize, 0, 10);
+                free(temp_pagesize);
+
+                temp_cmdline = read_value_from_file(files_preffix, "cmdline");
+                cmdline = temp_cmdline == NULL ? "" : temp_cmdline;
+                ADD_ADDR(temp_cmdline);
+
+                /* base */
+                temp_base = read_value_from_file(files_preffix, "base");
+                base = temp_base == NULL ? base : strtoul(temp_base, 0, 16);
+                free(temp_base);
+
+                temp_board = read_value_from_file(files_preffix, "board");
+                board = temp_board == NULL ? "" : temp_board;
+                ADD_ADDR(temp_board);
+
+                /* kernel_offset */
+                temp_kernel_offset = read_value_from_file(files_preffix, "kernel_offset");
+                kernel_offset = temp_kernel_offset == NULL ? kernel_offset : strtoul(temp_kernel_offset, 0, 16);
+                free(temp_kernel_offset);
+
+                /* ramdisk_offset */
+                temp_ramdisk_offset = read_value_from_file(files_preffix, "ramdisk_offset");
+                ramdisk_offset = temp_ramdisk_offset == NULL ? ramdisk_offset : strtoul(temp_ramdisk_offset, 0, 16);
+                free(temp_ramdisk_offset);
+
+                /* hashtype */
+                temp_hash_alg_val = read_value_from_file(files_preffix, "hashtype");
+                hash_alg_val = temp_hash_alg_val == NULL ? "sha1" : temp_hash_alg_val;
+                ADD_ADDR(temp_hash_alg_val);
+
+                /* header_version */
+                temp_header_version = read_value_from_file(files_preffix, "header_version");
+                header_version = temp_header_version == NULL ? header_version : strtoul(temp_header_version, 0, 10);
+                free(temp_header_version);
+
+                /* os_patch_level */
+                temp_os_patch_level = read_value_from_file(files_preffix, "os_patch_level");
+                os_patch_level = temp_os_patch_level == NULL ? os_patch_level : parse_os_patch_level(temp_os_patch_level);
+                free(temp_os_patch_level);
+
+                /* os_version */
+                temp_os_version = read_value_from_file(files_preffix, "os_version");
+                os_version = temp_os_version == NULL ? os_version : parse_os_version(temp_os_version);
+                free(temp_os_version);
+
+                /* second_offset */
+                temp_second_offset = read_value_from_file(files_preffix, "second_offset");
+                second_offset = temp_second_offset == NULL ? second_offset : strtoul(temp_second_offset, 0, 16);
+                free(temp_second_offset);
+
+                /* tags_offset */
+                temp_tags_offset = read_value_from_file(files_preffix, "tags_offset");
+                tags_offset = temp_tags_offset == NULL ? tags_offset : strtoul(temp_tags_offset, 0, 16);
+                free(temp_tags_offset);
+
+                argc -= 1;
+                argv += 1;
+                continue;
+            } else {
+                fprintf(stderr, "error: specify the preffix of the files created by unpackbootimg\n");
+                return usage();
+            }
+        }
+        if(argc >= 2) {
             char *val = argv[1];
             argc -= 2;
             argv += 2;
@@ -289,14 +480,14 @@ int main(int argc, char **argv)
             } else if(!strcmp(arg, "--vendor_boot")) {
                 vendor_boot = true;
                 bootimg = val;
-            } else if(!strcmp(arg, "--kernel")) {
+            } else if(!strcmp(arg, "--kernel") && kernel_fn == NULL) {
                 kernel_fn = val;
-            } else if(!strcmp(arg, "--ramdisk")) {
+            } else if(!strcmp(arg, "--ramdisk") && ramdisk_fn == NULL) {
                 ramdisk_fn = val;
             } else if(!strcmp(arg, "--vendor_ramdisk")) {
                 vendor_boot = true;
                 ramdisk_fn = val;
-            } else if(!strcmp(arg, "--second")) {
+            } else if(!strcmp(arg, "--second") && second_fn == NULL) {
                 second_fn = val;
             } else if(!strcmp(arg, "--dtb")) {
                 dtb_fn = val;
@@ -304,7 +495,7 @@ int main(int argc, char **argv)
                 recovery_dtbo_fn = val;
             } else if(!strcmp(arg, "--dt")) {
                 dt_fn = val;
-            } else if(!strcmp(arg, "--cmdline")) {
+            } else if(!strcmp(arg, "--cmdline") && temp_cmdline == NULL) {
                 cmdline = val;
             } else if(!strcmp(arg, "--vendor_cmdline")) {
                 vendor_boot = true;
@@ -325,25 +516,14 @@ int main(int argc, char **argv)
                 os_version = parse_os_version(val);
             } else if(!strcmp(arg, "--os_patch_level")) {
                 os_patch_level = parse_os_patch_level(val);
-            } else if(!strcmp(arg, "--board")) {
+            } else if(!strcmp(arg, "--board") && temp_board == NULL) {
                 board = val;
             } else if(!strcmp(arg,"--pagesize")) {
                 pagesize = strtoul(val, 0, 10);
-                if((pagesize != 2048) && (pagesize != 4096)
-                    && (pagesize != 8192) && (pagesize != 16384)
-                    && (pagesize != 32768) && (pagesize != 65536)
-                    && (pagesize != 131072)) {
-                    fprintf(stderr, "error: unsupported page size %d\n", pagesize);
-                    return -1;
-                }
             } else if(!strcmp(arg, "--header_version")) {
                 header_version = strtoul(val, 0, 10);
-            } else if(!strcmp(arg, "--hashtype")) {
-                hash_alg = parse_hash_alg(val);
-                if(hash_alg == HASH_UNKNOWN) {
-                    fprintf(stderr, "error: unknown hash algorithm '%s'\n", val);
-                    return -1;
-                }
+            } else if(!strcmp(arg, "--hashtype") && temp_hash_alg_val == NULL) {
+                hash_alg_val = val;
             } else {
                 fprintf(stderr, "error: unknown argument '%s'\n", arg);
                 return usage();
@@ -380,6 +560,14 @@ int main(int argc, char **argv)
 
             memcpy(hdr.magic, BOOT_MAGIC, BOOT_MAGIC_SIZE);
 
+            if((pagesize != 2048) && (pagesize != 4096)
+                && (pagesize != 8192) && (pagesize != 16384)
+                && (pagesize != 32768) && (pagesize != 65536)
+                && (pagesize != 131072)) {
+                fprintf(stderr, "error: unsupported pagesize %u\n", pagesize);
+                close(fd);
+                return 1;
+            }
             hdr.page_size = pagesize;
 
             hdr.kernel_addr  = base + kernel_offset;
@@ -482,6 +670,11 @@ int main(int argc, char **argv)
                 hdr.dtb_addr = 0;
             }
 
+            hash_alg = parse_hash_alg(hash_alg_val);
+            if(hash_alg == HASH_UNKNOWN) {
+                    fprintf(stderr, "error: unknown hash algorithm '%s'\n", hash_alg_val);
+                    return -1;
+            }
             // put a hash of the contents in the header so boot images can be differentiated based on their first 2k
             generate_id(hash_alg, &hdr, kernel_data, ramdisk_data, second_data, dt_data, recovery_dtbo_data, dtb_data);
 
@@ -633,6 +826,10 @@ int main(int argc, char **argv)
         if(write(fd, dtb_data, hdr.dtb_size) != (ssize_t) hdr.dtb_size) goto fail;
         if(write_padding(fd, pagesize, hdr.dtb_size)) goto fail;
 
+    }
+
+    for(int i = 0; i < addr_count; i++) {
+        free(addresses[i]);
     }
     return 0;
 
